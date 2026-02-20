@@ -44,7 +44,7 @@
 <div class="wrapper">
     <div class="header">
         <h1>💎 પરમાર ફેમિલી ફાઇનાન્સ પ્રો</h1>
-        <button onclick="fetchDataFromSheet()" style="background:white; color:black; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; margin-top:10px;">🔄 ડેટા રિફ્રેશ કરો</button>
+        <button onclick="manualSync()" style="background:white; color:black; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; margin-top:10px;">🔄 ડેટા રિફ્રેશ અને સિંક કરો</button>
     </div>
 
     <div id="balanceDisplay" class="balance-grid"></div>
@@ -92,7 +92,7 @@
 </div>
 
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNXx_h-7PcY5_Fywly59vHV_iUa5QGFZU1K0rQcXOaNPpMZiyFdTBq5STRAdY4orqx/exec";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyzBkhGDxj7HdIccqwMxfLdWbrmEhA442msMQvlr1HlFqIevuXRrjl6l57IxTPMsqg/exec";
     const members = ["હરપાલ", "સોનલ", "ક્રિશા", "મહિરાજ"];
     const cats = { expense: ["કરિયાણું", "દૂધ", "શાકભાજી", "બિલ", "દવા", "પેટ્રોલ", "અન્ય"], income: ["પગાર", "વ્યાજ", "ભેટ", "અન્ય"] };
     
@@ -103,18 +103,26 @@
     async function init() {
         ['e_user', 't_u_from', 't_u_to'].forEach(id => {
             const el = document.getElementById(id);
-            el.innerHTML = `<option value="">-- પસંદ કરો --</option>`;
-            members.forEach(m => { el.innerHTML += `<option value="${m}">${m}</option>`; });
+            if(el) {
+                el.innerHTML = `<option value="">-- પસંદ કરો --</option>`;
+                members.forEach(m => { el.innerHTML += `<option value="${m}">${m}</option>`; });
+            }
         });
         await fetchDataFromSheet();
         checkSync();
     }
 
-    async function fetchDataFromSheet() {
+    async function manualSync() {
         if (!navigator.onLine) {
-            renderAll();
+            alert("હજી ઇન્ટરનેટ નથી. નેટ ચાલુ કરીને પ્રયત્ન કરો.");
             return;
         }
+        await checkSync();
+        await fetchDataFromSheet();
+    }
+
+    async function fetchDataFromSheet() {
+        if (!navigator.onLine) { renderAll(); return; }
         showLoader(true, "ડેટા ખેંચી રહ્યો છે...");
         try {
             const response = await fetch(SCRIPT_URL + "?action=getInitialData");
@@ -181,44 +189,6 @@
         });
     }
 
-    async function processEntry() {
-        const user = document.getElementById('e_user').value;
-        const type = document.getElementById('e_type').value;
-        const mode = document.getElementById('e_mode').value;
-        const amt = parseFloat(document.getElementById('e_amt').value);
-        const catVal = document.getElementById('e_cat').value;
-
-        if (!user || !type || !mode || isNaN(amt) || !catVal) return alert("બધી વિગત ભરો!");
-        
-        const entry = [{
-            id: "E-" + Date.now(),
-            date: new Date().toLocaleString('en-IN'),
-            user, type, mode, amt, isTransfer: false,
-            cat: (catVal === 'NEW') ? (document.getElementById('e_custom_cat').value || "અન્ય") : catVal
-        }];
-
-        await sendToSheet(entry);
-        resetForms();
-    }
-
-    async function processTransfer() {
-        const uF = document.getElementById('t_u_from').value;
-        const uT = document.getElementById('t_u_to').value;
-        const mF = document.getElementById('t_m_from').value;
-        const mT = document.getElementById('t_m_to').value;
-        const amt = parseFloat(document.getElementById('t_amt').value);
-
-        if (!uF || !uT || !mF || !mT || isNaN(amt)) return alert("વિગત અધૂરી છે!");
-        const gid = "TRF-" + Date.now();
-        const date = new Date().toLocaleString('en-IN');
-        const entries = [
-            { id: gid, date, user: uF, type: 'transfer-out', mode: mF, amt, cat: `➡️ To: ${uT}`, isTransfer: true },
-            { id: gid, date, user: uT, type: 'transfer-in', mode: mT, amt, cat: `⬅️ From: ${uF}`, isTransfer: true }
-        ];
-        await sendToSheet(entries);
-        resetForms();
-    }
-
     async function sendToSheet(payload) {
         if (!navigator.onLine) {
             offlineQueue.push(...payload);
@@ -231,7 +201,7 @@
         try {
             await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify({ action: "saveTransaction", payload: payload }) });
             await fetchDataFromSheet();
-        } catch (e) { alert("ભૂલ આવી!"); }
+        } catch (e) { alert("સેવ કરવામાં ભૂલ આવી!"); }
         showLoader(false);
     }
 
@@ -239,13 +209,47 @@
         if (navigator.onLine && offlineQueue.length > 0) {
             showLoader(true, "ઓફલાઇન એન્ટ્રી સિંક થઈ રહી છે...");
             try {
-                await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify({ action: "saveTransaction", payload: offlineQueue }) });
-                offlineQueue = [];
-                localStorage.removeItem('parmar_offline');
-                await fetchDataFromSheet();
-            } catch (e) { console.log("Sync failed"); }
+                const response = await fetch(SCRIPT_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ action: "saveTransaction", payload: offlineQueue }) 
+                });
+                if(response.ok) {
+                    offlineQueue = [];
+                    localStorage.removeItem('parmar_offline');
+                    alert("ઓફલાઇન ડેટા સફળતાપૂર્વક સિંક થઈ ગયો!");
+                }
+            } catch (e) { console.log("Sync failed", e); }
             showLoader(false);
         }
+    }
+
+    async function processEntry() {
+        const user = document.getElementById('e_user').value;
+        const type = document.getElementById('e_type').value;
+        const mode = document.getElementById('e_mode').value;
+        const amt = parseFloat(document.getElementById('e_amt').value);
+        const catVal = document.getElementById('e_cat').value;
+        if (!user || !type || !mode || isNaN(amt) || !catVal) return alert("બધી વિગત ભરો!");
+        const entry = [{ id: "E-" + Date.now(), date: new Date().toLocaleString('en-IN'), user, type, mode, amt, isTransfer: false, cat: (catVal === 'NEW') ? (document.getElementById('e_custom_cat').value || "અન્ય") : catVal }];
+        await sendToSheet(entry);
+        resetForms();
+    }
+
+    async function processTransfer() {
+        const uF = document.getElementById('t_u_from').value;
+        const uT = document.getElementById('t_u_to').value;
+        const mF = document.getElementById('t_m_from').value;
+        const mT = document.getElementById('t_m_to').value;
+        const amt = parseFloat(document.getElementById('t_amt').value);
+        if (!uF || !uT || !mF || !mT || isNaN(amt)) return alert("વિગત અધૂરી છે!");
+        const gid = "TRF-" + Date.now();
+        const date = new Date().toLocaleString('en-IN');
+        const entries = [
+            { id: gid, date, user: uF, type: 'transfer-out', mode: mF, amt, cat: `➡️ To: ${uT}`, isTransfer: true },
+            { id: gid, date, user: uT, type: 'transfer-in', mode: mT, amt, cat: `⬅️ From: ${uF}`, isTransfer: true }
+        ];
+        await sendToSheet(entries);
+        resetForms();
     }
 
     async function deleteTransaction(id) {
@@ -254,7 +258,7 @@
         try {
             await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify({ action: "deleteTransaction", id: id }) });
             await fetchDataFromSheet();
-        } catch (e) { alert("Error deleting"); }
+        } catch (e) { alert("Delete failed"); }
         showLoader(false);
     }
 
