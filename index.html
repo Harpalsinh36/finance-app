@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>પરમાર ફેમિલી ફાઇનાન્સ પ્રો</title>
+    <style>
+        :root { --glass: rgba(255, 255, 255, 0.9); --primary: #4338ca; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px;
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%; animation: gradientBG 15s ease infinite; min-height: 100vh;
+        }
+        @keyframes gradientBG { 0% {background-position:0% 50%} 50% {background-position:100% 50%} 100% {background-position:0% 50%} }
+        .wrapper { max-width: 1250px; margin: auto; }
+        .header { text-align: center; padding: 20px; background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); border-radius: 20px; color: white; margin-bottom: 20px; }
+        .balance-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .balance-card { background: var(--glass); border-radius: 20px; padding: 20px; border-left: 8px solid var(--primary); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .bal-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #ccc; }
+        .card { background: var(--glass); border-radius: 20px; padding: 25px; margin-bottom: 25px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .main-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; margin-bottom: 10px; box-sizing: border-box; font-size: 1rem; }
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        .btn-save { background: #4338ca; color: white; }
+        .btn-trf { background: #7c3aed; color: white; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; color: white; z-index: 1000; flex-direction: column; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        .update-footer { text-align: center; color: white; margin-top: 20px; font-size: 0.9rem; opacity: 0.8; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+        .bg-inc { background: #dcfce7; color: #166534; }
+        .bg-exp { background: #fee2e2; color: #991b1b; }
+        .bg-trf { background: #f3e8ff; color: #5b21b6; }
+        .offline-tag { background: #f59e0b; color: white; padding: 2px 5px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="loader" class="loading-overlay">
+    <div style="font-size: 2rem;">⌛</div>
+    <div id="loaderText">પ્રોસેસ થઈ રહી છે...</div>
+</div>
+
+<div class="wrapper">
+    <div class="header">
+        <h1>💎 પરમાર ફેમિલી ફાઇનાન્સ પ્રો</h1>
+        <button onclick="fetchDataFromSheet()" style="background:white; color:black; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; margin-top:10px;">🔄 ડેટા રિફ્રેશ કરો</button>
+    </div>
+
+    <div id="balanceDisplay" class="balance-grid"></div>
+
+    <div class="main-grid">
+        <div class="card">
+            <h3>📝 નવી એન્ટ્રી</h3>
+            <label>સભ્ય</label>
+            <select id="e_user"></select>
+            <div style="display:flex; gap:10px;">
+                <div style="flex:1"><label>પ્રકાર</label><select id="e_type" onchange="updateCatOptions()"><option value="">-- પસંદ કરો --</option><option value="expense">ખર્ચ</option><option value="income">આવક</option></select></div>
+                <div style="flex:1"><label>મોડ</label><select id="e_mode"><option value="">-- પસંદ કરો --</option><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Card">Card</option></select></div>
+            </div>
+            <label>રકમ (₹)</label><input type="number" id="e_amt" placeholder="0.00">
+            <label>કેટેગરી</label><select id="e_cat" onchange="showHideCustomCat()"><option value="">-- પ્રકાર પસંદ કરો --</option></select>
+            <div id="customCatDiv" style="display:none;"><label>વિગત (અન્ય)</label><input type="text" id="e_custom_cat"></div>
+            <button class="btn btn-save" onclick="processEntry()">💾 સેવ કરો</button>
+        </div>
+
+        <div class="card">
+            <h3>🔄 ટ્રાન્સફર</h3>
+            <div style="display:flex; gap:10px;">
+                <div style="flex:1"><label>From</label><select id="t_u_from"></select></div>
+                <div style="flex:1"><label>To</label><select id="t_u_to"></select></div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <div style="flex:1"><label>મોડ (From)</label><select id="t_m_from"><option value="">-- પસંદ કરો --</option><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Card">Card</option></select></div>
+                <div style="flex:1"><label>મોડ (To)</label><select id="t_m_to"><option value="">-- પસંદ કરો --</option><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Card">Card</option></select></div>
+            </div>
+            <label>રકમ (₹)</label><input type="number" id="t_amt" placeholder="0.00">
+            <button class="btn btn-trf" onclick="processTransfer()">🔄 ટ્રાન્સફર કન્ફર્મ</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📜 હિસ્ટ્રી</h3>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead><tr><th>તારીખ</th><th>સભ્ય</th><th>પ્રકાર</th><th>વિગત</th><th>મોડ</th><th>રકમ</th><th>એક્શન</th></tr></thead>
+                <tbody id="historyTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="update-footer" id="lastUpdateText">તપાસી રહ્યું છે...</div>
+</div>
+
+<script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNXx_h-7PcY5_Fywly59vHV_iUa5QGFZU1K0rQcXOaNPpMZiyFdTBq5STRAdY4orqx/exec";
+    const members = ["હરપાલ", "સોનલ", "ક્રિશા", "મહિરાજ"];
+    const cats = { expense: ["કરિયાણું", "દૂધ", "શાકભાજી", "બિલ", "દવા", "પેટ્રોલ", "અન્ય"], income: ["પગાર", "વ્યાજ", "ભેટ", "અન્ય"] };
+    
+    let transactions = [];
+    let offlineQueue = JSON.parse(localStorage.getItem('parmar_offline')) || [];
+    let openingBalances = {"હરપાલ":{"Cash":0,"Bank":0,"Card":0},"સોનલ":{"Cash":0,"Bank":0,"Card":0},"ક્રિશા":{"Cash":0,"Bank":0,"Card":0},"મહિરાજ":{"Cash":0,"Bank":0,"Card":0}};
+
+    async function init() {
+        ['e_user', 't_u_from', 't_u_to'].forEach(id => {
+            const el = document.getElementById(id);
+            el.innerHTML = `<option value="">-- પસંદ કરો --</option>`;
+            members.forEach(m => { el.innerHTML += `<option value="${m}">${m}</option>`; });
+        });
+        await fetchDataFromSheet();
+        checkSync();
+    }
+
+    async function fetchDataFromSheet() {
+        if (!navigator.onLine) {
+            renderAll();
+            return;
+        }
+        showLoader(true, "ડેટા ખેંચી રહ્યો છે...");
+        try {
+            const response = await fetch(SCRIPT_URL + "?action=getInitialData");
+            const data = await response.json();
+            
+            if(data.opening && data.opening.length > 1) {
+                data.opening.slice(1).forEach(row => {
+                    let u = row[0];
+                    if(openingBalances[u]) {
+                        openingBalances[u].Cash = parseFloat(row[1]) || 0;
+                        openingBalances[u].Bank = parseFloat(row[2]) || 0;
+                        openingBalances[u].Card = parseFloat(row[3]) || 0;
+                    }
+                });
+            }
+            if(data.logs) {
+                transactions = data.logs.slice(1).map(row => ({
+                    id: row[0], date: row[1], user: row[2], type: row[3],
+                    mode: row[4], amt: parseFloat(row[5]), cat: row[6], isTransfer: String(row[7]) === "true"
+                }));
+            }
+            document.getElementById('lastUpdateText').innerText = "છેલ્લું અપડેટ: " + new Date().toLocaleString();
+            renderAll();
+        } catch (e) { console.error(e); }
+        showLoader(false);
+    }
+
+    function renderAll() {
+        let stats = JSON.parse(JSON.stringify(openingBalances));
+        let allData = [...transactions, ...offlineQueue];
+
+        allData.forEach(t => {
+            if (t.type === 'income' || t.type === 'transfer-in') stats[t.user][t.mode] += t.amt;
+            else stats[t.user][t.mode] -= t.amt;
+        });
+
+        document.getElementById('balanceDisplay').innerHTML = members.map(m => `
+            <div class="balance-card">
+                <h4>👤 ${m}</h4>
+                <div class="bal-row"><span>Cash</span> <b>₹${stats[m].Cash}</b></div>
+                <div class="bal-row"><span>Bank</span> <b>₹${stats[m].Bank}</b></div>
+                <div class="bal-row"><span>Card</span> <b>₹${stats[m].Card}</b></div>
+                <div style="margin-top:10px; font-weight:800; text-align:right; color:#4338ca;">Total: ₹${stats[m].Cash + stats[m].Bank + stats[m].Card}</div>
+            </div>
+        `).join('');
+
+        const tbody = document.getElementById('historyTableBody');
+        tbody.innerHTML = "";
+        let shownIds = new Set();
+        [...allData].reverse().forEach(t => {
+            if (t.isTransfer && shownIds.has(t.id)) return;
+            if (t.isTransfer) shownIds.add(t.id);
+            const badge = t.isTransfer ? 'bg-trf' : (t.type==='income'?'bg-inc':'bg-exp');
+            const isOffline = offlineQueue.find(o => o.id === t.id);
+            tbody.innerHTML += `
+                <tr>
+                    <td><small>${t.date}</small></td>
+                    <td><b>${t.user}</b> ${isOffline ? '<span class="offline-tag">Offline</span>' : ''}</td>
+                    <td><span class="badge ${badge}">${t.isTransfer ? 'TRANSFER' : t.type.toUpperCase()}</span></td>
+                    <td>${t.cat}</td><td>${t.mode}</td>
+                    <td style="font-weight:bold; color:${t.type.includes('income')||t.type.includes('in')?'#059669':'#dc2626'}">₹${t.amt}</td>
+                    <td>${!isOffline ? `<button onclick="deleteTransaction('${t.id}')" style="background:#ef4444; color:white; border:none; border-radius:4px; padding:5px; cursor:pointer;">🗑️</button>` : ''}</td>
+                </tr>`;
+        });
+    }
+
+    async function processEntry() {
+        const user = document.getElementById('e_user').value;
+        const type = document.getElementById('e_type').value;
+        const mode = document.getElementById('e_mode').value;
+        const amt = parseFloat(document.getElementById('e_amt').value);
+        const catVal = document.getElementById('e_cat').value;
+
+        if (!user || !type || !mode || isNaN(amt) || !catVal) return alert("બધી વિગત ભરો!");
+        
+        const entry = [{
+            id: "E-" + Date.now(),
+            date: new Date().toLocaleString('en-IN'),
+            user, type, mode, amt, isTransfer: false,
+            cat: (catVal === 'NEW') ? (document.getElementById('e_custom_cat').value || "અન્ય") : catVal
+        }];
+
+        await sendToSheet(entry);
+        resetForms();
+    }
+
+    async function processTransfer() {
+        const uF = document.getElementById('t_u_from').value;
+        const uT = document.getElementById('t_u_to').value;
+        const mF = document.getElementById('t_m_from').value;
+        const mT = document.getElementById('t_m_to').value;
+        const amt = parseFloat(document.getElementById('t_amt').value);
+
+        if (!uF || !uT || !mF || !mT || isNaN(amt)) return alert("વિગત અધૂરી છે!");
+        const gid = "TRF-" + Date.now();
+        const date = new Date().toLocaleString('en-IN');
+        const entries = [
+            { id: gid, date, user: uF, type: 'transfer-out', mode: mF, amt, cat: `➡️ To: ${uT}`, isTransfer: true },
+            { id: gid, date, user: uT, type: 'transfer-in', mode: mT, amt, cat: `⬅️ From: ${uF}`, isTransfer: true }
+        ];
+        await sendToSheet(entries);
+        resetForms();
+    }
+
+    async function sendToSheet(payload) {
+        if (!navigator.onLine) {
+            offlineQueue.push(...payload);
+            localStorage.setItem('parmar_offline', JSON.stringify(offlineQueue));
+            renderAll();
+            alert("ઇન્ટરનેટ નથી, એન્ટ્રી ફોનમાં સેવ થઈ છે!");
+            return;
+        }
+        showLoader(true, "શીટમાં સેવ થાય છે...");
+        try {
+            await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify({ action: "saveTransaction", payload: payload }) });
+            await fetchDataFromSheet();
+        } catch (e) { alert("ભૂલ આવી!"); }
+        showLoader(false);
+    }
+
+    async function checkSync() {
+        if (navigator.onLine && offlineQueue.length > 0) {
+            showLoader(true, "ઓફલાઇન એન્ટ્રી સિંક થઈ રહી છે...");
+            try {
+                await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify({ action: "saveTransaction", payload: offlineQueue }) });
+                offlineQueue = [];
+                localStorage.removeItem('parmar_offline');
+                await fetchDataFromSheet();
+            } catch (e) { console.log("Sync failed"); }
+            showLoader(false);
+        }
+    }
+
+    async function deleteTransaction(id) {
+        if(!confirm("ડીલીટ કરવું છે?")) return;
+        showLoader(true);
+        try {
+            await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify({ action: "deleteTransaction", id: id }) });
+            await fetchDataFromSheet();
+        } catch (e) { alert("Error deleting"); }
+        showLoader(false);
+    }
+
+    window.addEventListener('online', checkSync);
+    function updateCatOptions() {
+        const type = document.getElementById('e_type').value;
+        const el = document.getElementById('e_cat');
+        if(!type) { el.innerHTML = `<option value="">-- પ્રકાર પસંદ કરો --</option>`; return; }
+        el.innerHTML = `<option value="">-- પસંદ કરો --</option>` + cats[type].map(c => `<option value="${c}">${c}</option>`).join('') + `<option value="NEW">➕ નવી વિગત</option>`;
+    }
+    function showHideCustomCat() { document.getElementById('customCatDiv').style.display = (document.getElementById('e_cat').value === 'NEW') ? 'block' : 'none'; }
+    function resetForms() { ['e_user','e_type','e_mode','e_cat','t_u_from','t_u_to','t_m_from','t_m_to','e_amt','t_amt'].forEach(id => { try{document.getElementById(id).value = "";}catch(e){} }); updateCatOptions(); }
+    function showLoader(show, text="રાહ જુઓ...") { document.getElementById('loader').style.display = show ? 'flex' : 'none'; document.getElementById('loaderText').innerText = text; }
+    init();
+</script>
+</body>
+</html>
